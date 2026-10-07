@@ -339,10 +339,10 @@ namespace UnrealGameSync
 			else
 			{
 				// if the user has never set the preset, and we have a default preset, and it is available: set the preset to tbe the default preset
-				if (    String.IsNullOrWhiteSpace(_projectSettings.Preset)
+				if (	String.IsNullOrWhiteSpace(_projectSettings.Preset)
 					&& !_projectSettings.PresetSetByUser
 					&& !String.IsNullOrWhiteSpace(defaultPreset)
-				    && ConfigUtils.IsPresetAvailable(openProjectInfo.LatestProjectConfigFile, ProjectInfo.ProjectIdentifier, defaultPreset))
+					&& ConfigUtils.IsPresetAvailable(openProjectInfo.LatestProjectConfigFile, ProjectInfo.ProjectIdentifier, defaultPreset))
 				{
 					currentPreset = defaultPreset;
 				}
@@ -3767,10 +3767,23 @@ namespace UnrealGameSync
 			}
 		}
 
-		public void LaunchEditor()
+		public async void LaunchEditor()
 		{
 			if (!_workspace.IsBusy() && _workspace.CurrentChangeNumber != -1)
 			{
+				// Check our mocked DDC result - for testing this will always fail, it will always return Unreachable
+				DdcCheckResult ddcResult = await DerivedDataCacheChecker.CheckAsync(_logger, CancellationToken.None);
+				if (ddcResult.Reachability == DdcReachability.Unreachable)
+				{
+					string message = $"The shared Derived Data Cache server could not be reached:\n{ddcResult.ServerUrl}\n\n" +
+					                 "The editor will build all shaders and derived data locally instead, which can take a long time on first launch.\n\n" +
+					                 "Check your setup against: <<LinkToDoc>> \n\n" + 
+					                 "or Launch anyway?";
+					if (MessageBox.Show(message, "Shared DDC Unreachable", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+					{
+						return;
+					}
+				}
 				BuildConfig editorBuildConfig = GetEditorBuildConfig();
 
 				FileReference receiptFile = ConfigUtils.GetEditorReceiptFile(_workspace.Project, _workspace.ProjectConfigFile, editorBuildConfig);
@@ -6842,7 +6855,7 @@ namespace UnrealGameSync
 					HashSet<Guid> stepSet = new HashSet<Guid> { step.UniqueId };
 					
 					bool UsingPreCompiledExecutables = GetSelectedArchiveChannels(GetArchiveChannels()).Any(channel => channel.Type == IArchiveChannel.EditorArchiveType) 
-					                                || GetSelectedProjectOverrideArchiveChannels(GetArchiveChannels()).Any(channel => channel.Type == IArchiveChannel.EditorArchiveType);
+													|| GetSelectedProjectOverrideArchiveChannels(GetArchiveChannels()).Any(channel => channel.Type == IArchiveChannel.EditorArchiveType);
 
 					int RequirementCount = step.Requires.Count;
 					if (!UsingPreCompiledExecutables)
@@ -7765,7 +7778,7 @@ namespace UnrealGameSync
 		{
 			_settings.AnnotateRobmergeChanges ^= true;
 			_settings.Save(_logger);
-			BuildList.Items.Clear();    // need to reload to update user names
+			BuildList.Items.Clear();	// need to reload to update user names
 
 			UpdateBuildListFilter();
 		}
